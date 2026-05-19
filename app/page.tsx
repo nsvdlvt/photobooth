@@ -24,9 +24,12 @@ export default function Home() {
   const [countdownNumber, setCountdownNumber] = useState<number | null>(null)
 const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
 const [selectedDevice, setSelectedDevice] = useState<string>("")
+const [facingMode, setFacingMode] = useState<
+  "user" | "environment"
+>("user")
 
 const [openCameraSelect, setOpenCameraSelect] = useState(false)
-
+const [isMobile, setIsMobile] = useState(false)
 const cameraRef = useRef<HTMLDivElement>(null)
   const [openLayout, setOpenLayout] = useState(false)
   const [openCountdown, setOpenCountdown] = useState(false)
@@ -53,6 +56,16 @@ useEffect(() => {
   }
 
   getDevices()
+
+}, [])
+useEffect(() => {
+
+  const mobileCheck =
+    /Android|iPhone|iPad|iPod/i.test(
+      navigator.userAgent
+    )
+
+  setIsMobile(mobileCheck)
 
 }, [])
   useEffect(() => {
@@ -387,6 +400,7 @@ if (
 
         </div>
 {/* CAMERA SELECT */}
+{!isMobile && (
 <div
   ref={cameraRef}
   className="
@@ -479,7 +493,59 @@ if (
 
   )}
 
-</div>
+</div> )}
+{/* MOBILE CAMERA SWITCH */}
+{isMobile && (
+
+  <div className="
+    flex
+    gap-3
+    items-end
+  ">
+
+    <button
+      onClick={() =>
+        setFacingMode("user")
+      }
+      className={`
+        px-5 py-3
+        rounded-2xl
+        font-bold
+        shadow-lg
+        transition
+        ${
+          facingMode === "user"
+            ? "bg-pink-400 text-white"
+            : "bg-white/80 text-zinc-700"
+        }
+      `}
+    >
+      🤳 Cam trước
+    </button>
+
+    <button
+      onClick={() =>
+        setFacingMode("environment")
+      }
+      className={`
+        px-5 py-3
+        rounded-2xl
+        font-bold
+        shadow-lg
+        transition
+        ${
+          facingMode === "environment"
+            ? "bg-pink-400 text-white"
+            : "bg-white/80 text-zinc-700"
+        }
+      `}
+    >
+      📷 Cam sau
+    </button>
+
+  </div>
+
+)}
         {/* preview button */}
         <div className="flex items-end">
 
@@ -566,17 +632,35 @@ if (
             )}
 
             <Webcam
-  key={selectedDevice}
+  key={
+  isMobile
+    ? `mobile-${facingMode}`
+    : `desktop-${selectedDevice}`
+}
               ref={webcamRef}
               screenshotFormat="image/png"
-              mirrored
-              videoConstraints={{
-  width: 1280,
-  height: 720,
-  deviceId: {
-  exact: selectedDevice,
+              mirrored={
+  isMobile
+    ? facingMode === "user"
+    : true
+}
+              videoConstraints={
+  isMobile
+    ? {
+        width: 1280,
+        height: 720,
+        facingMode: {
+  exact: facingMode,
 },
-}}
+      }
+    : {
+        width: 1280,
+        height: 720,
+        deviceId: {
+          exact: selectedDevice,
+        },
+      }
+}
               className="
                 w-full
                 max-w-4xl
