@@ -22,18 +22,48 @@ export default function Home() {
   const [countdown, setCountdown] = useState("3s")
 
   const [countdownNumber, setCountdownNumber] = useState<number | null>(null)
+const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
+const [selectedDevice, setSelectedDevice] = useState<string>("")
 
+const [openCameraSelect, setOpenCameraSelect] = useState(false)
+
+const cameraRef = useRef<HTMLDivElement>(null)
   const [openLayout, setOpenLayout] = useState(false)
   const [openCountdown, setOpenCountdown] = useState(false)
 
   useEffect(() => {
     shutterAudio.current = new Audio("/shutter.mp3")
   }, [])
+useEffect(() => {
 
+  const getDevices = async () => {
+
+    const mediaDevices =
+      await navigator.mediaDevices.enumerateDevices()
+
+    const videoDevices = mediaDevices.filter(
+      (device) => device.kind === "videoinput"
+    )
+
+    setDevices(videoDevices)
+
+    if (videoDevices.length > 0) {
+      setSelectedDevice(videoDevices[0].deviceId)
+    }
+  }
+
+  getDevices()
+
+}, [])
   useEffect(() => {
 
     const handleClickOutside = (event: MouseEvent) => {
-
+if (
+  cameraRef.current &&
+  !cameraRef.current.contains(event.target as Node)
+) {
+  setOpenCameraSelect(false)
+}
       if (
         layoutRef.current &&
         !layoutRef.current.contains(event.target as Node)
@@ -210,6 +240,7 @@ export default function Home() {
         gap-4
         mb-8
         flex-wrap
+        items-end
         justify-center
         z-10
       ">
@@ -355,7 +386,100 @@ export default function Home() {
           )}
 
         </div>
+{/* CAMERA SELECT */}
+<div
+  ref={cameraRef}
+  className="
+    relative
+    mt-6
+    z-20
+  "
+>
 
+  <p className="
+    text-blue-500
+    font-bold
+    mb-2
+    text-center
+  ">
+    Camera
+  </p>
+
+  <button
+    onClick={() =>
+      setOpenCameraSelect(!openCameraSelect)
+    }
+    className="
+      w-52
+      px-5 py-3
+      rounded-2xl
+      bg-white/80
+      backdrop-blur-xl
+      border border-blue-200
+      shadow-lg
+      flex items-center justify-between
+      hover:scale-[1.02]
+      transition
+    "
+  >
+
+    <span className="truncate">
+
+      {devices.find(
+        (d) => d.deviceId === selectedDevice
+      )?.label || "Choose Camera"}
+
+    </span>
+
+    <ChevronDown size={20} />
+
+  </button>
+
+  {openCameraSelect && (
+
+    <div className="
+      absolute
+      mt-2
+      w-72
+      bg-white/90
+      backdrop-blur-xl
+      rounded-2xl
+      shadow-2xl
+      border border-blue-100
+      overflow-hidden
+      z-[999]
+      max-h-52
+      overflow-y-auto
+    ">
+
+      {devices.map((device) => (
+
+        <button
+          key={device.deviceId}
+          onClick={() => {
+
+            setSelectedDevice(device.deviceId)
+
+            setOpenCameraSelect(false)
+          }}
+          className="
+            w-full
+            text-left
+            px-5 py-3
+            hover:bg-blue-100
+            transition
+          "
+        >
+          {device.label || "Camera"}
+        </button>
+
+      ))}
+
+    </div>
+
+  )}
+
+</div>
         {/* preview button */}
         <div className="flex items-end">
 
@@ -442,14 +566,17 @@ export default function Home() {
             )}
 
             <Webcam
+  key={selectedDevice}
               ref={webcamRef}
               screenshotFormat="image/png"
               mirrored
               videoConstraints={{
-                width: 1280,
-                height: 720,
-                facingMode: "user",
-              }}
+  width: 1280,
+  height: 720,
+  deviceId: {
+  exact: selectedDevice,
+},
+}}
               className="
                 w-full
                 max-w-4xl
@@ -468,6 +595,7 @@ export default function Home() {
           </div>
 
           {/* BUTTONS */}
+          
           <div className="
             w-full
             flex
