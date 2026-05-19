@@ -2,10 +2,12 @@
 
 import Webcam from "react-webcam"
 import { useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { ChevronDown } from "lucide-react"
-
+import { supabase }
+  from "@/lib/supabase"
 export default function Home() {
-
+  const router = useRouter()
   const webcamRef = useRef<Webcam>(null)
 
   const shutterAudio = useRef<HTMLAudioElement | null>(null)
@@ -16,67 +18,93 @@ export default function Home() {
   const [flash, setFlash] = useState(false)
 
   const [images, setImages] = useState<string[]>([])
+  const [autoMode, setAutoMode] =
+  useState(false)
+  const [videoUrl, setVideoUrl] =
+    useState("")
   const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const mediaRecorderRef =
+    useRef<MediaRecorder | null>(
+      null
+    )
+const recordingStreamRef =
+  useRef<MediaStream | null>(
+    null
+  )
+  const recordedChunksRef =
+    useRef<Blob[]>([])
 
+  const [recording, setRecording] =
+    useState(false)
   const [layout, setLayout] = useState("2×3 (6 ảnh)")
+  const cameraAspect =
+    layout === "2×2 (4 ảnh)"
+      ? "aspect-[3/4]"
+      : "aspect-video"
+  const requiredPhotos =
+    layout === "2×3 (6 ảnh)"
+      ? 6
+      : layout === "2×2 (4 ảnh)"
+        ? 4
+        : 4
   const [countdown, setCountdown] = useState("3s")
 
   const [countdownNumber, setCountdownNumber] = useState<number | null>(null)
-const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
-const [selectedDevice, setSelectedDevice] = useState<string>("")
-const [facingMode, setFacingMode] = useState<
-  "user" | "environment"
->("user")
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
+  const [selectedDevice, setSelectedDevice] = useState<string>("")
+  const [facingMode, setFacingMode] = useState<
+    "user" | "environment"
+  >("user")
 
-const [openCameraSelect, setOpenCameraSelect] = useState(false)
-const [isMobile, setIsMobile] = useState(false)
-const cameraRef = useRef<HTMLDivElement>(null)
+  const [openCameraSelect, setOpenCameraSelect] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const cameraRef = useRef<HTMLDivElement>(null)
   const [openLayout, setOpenLayout] = useState(false)
   const [openCountdown, setOpenCountdown] = useState(false)
 
   useEffect(() => {
     shutterAudio.current = new Audio("/shutter.mp3")
   }, [])
-useEffect(() => {
+  useEffect(() => {
 
-  const getDevices = async () => {
+    const getDevices = async () => {
 
-    const mediaDevices =
-      await navigator.mediaDevices.enumerateDevices()
+      const mediaDevices =
+        await navigator.mediaDevices.enumerateDevices()
 
-    const videoDevices = mediaDevices.filter(
-      (device) => device.kind === "videoinput"
-    )
+      const videoDevices = mediaDevices.filter(
+        (device) => device.kind === "videoinput"
+      )
 
-    setDevices(videoDevices)
+      setDevices(videoDevices)
 
-    if (videoDevices.length > 0) {
-      setSelectedDevice(videoDevices[0].deviceId)
+      if (videoDevices.length > 0) {
+        setSelectedDevice(videoDevices[0].deviceId)
+      }
     }
-  }
 
-  getDevices()
+    getDevices()
 
-}, [])
-useEffect(() => {
+  }, [])
+  useEffect(() => {
 
-  const mobileCheck =
-    /Android|iPhone|iPad|iPod/i.test(
-      navigator.userAgent
-    )
+    const mobileCheck =
+      /Android|iPhone|iPad|iPod/i.test(
+        navigator.userAgent
+      )
 
-  setIsMobile(mobileCheck)
+    setIsMobile(mobileCheck)
 
-}, [])
+  }, [])
   useEffect(() => {
 
     const handleClickOutside = (event: MouseEvent) => {
-if (
-  cameraRef.current &&
-  !cameraRef.current.contains(event.target as Node)
-) {
-  setOpenCameraSelect(false)
-}
+      if (
+        cameraRef.current &&
+        !cameraRef.current.contains(event.target as Node)
+      ) {
+        setOpenCameraSelect(false)
+      }
       if (
         layoutRef.current &&
         !layoutRef.current.contains(event.target as Node)
@@ -121,54 +149,247 @@ if (
       setPreviewImage(screenshot)
     }
   }
+  const startRecording =
+    async () => {
 
-  const autoCapture = async () => {
+      const stream =
+  await navigator
+    .mediaDevices
+    .getUserMedia({
 
-    const seconds = parseInt(countdown)
+      video: {
+        width: 640,
+        height: 360,
+        frameRate: 24,
+      },
 
-    const remaining = 8 - images.length
+      audio: false,
+    })
+recordingStreamRef.current =
+  stream
+      if (!stream)
+        return
 
-    if (remaining <= 0) return
+      recordedChunksRef.current =
+        []
 
-    for (let shot = 0; shot < remaining; shot++) {
-
-      // countdown
-      for (let i = seconds; i > 0; i--) {
-
-        setCountdownNumber(i)
-
-        await new Promise((resolve) =>
-          setTimeout(resolve, 1000)
+      const mimeType =
+        MediaRecorder.isTypeSupported(
+          "video/webm;codecs=vp9"
         )
-      }
+          ? "video/webm;codecs=vp9"
+          : MediaRecorder.isTypeSupported(
+            "video/webm"
+          )
+            ? "video/webm"
+            : ""
 
-      setCountdownNumber(null)
+      const recorder =
+  new MediaRecorder(
+    stream,
+    {
+      mimeType:
+  mimeType ||
+  "video/webm",
 
-      // flash
-      triggerFlash()
+      videoBitsPerSecond:
+          250000,
+    }
+        )
 
-      // sound
-      shutterAudio.current?.play()
+      recorder.ondataavailable =
+        (event) => {
 
-      // capture
-      const screenshot = webcamRef.current?.getScreenshot()
+          if (
+            event.data.size > 0
+          ) {
 
-      if (screenshot) {
+            recordedChunksRef.current
+              .push(event.data)
+          }
+        }
 
-        setImages((prev) => {
+      recorder.start()
 
-          if (prev.length >= 8) return prev
+      mediaRecorderRef.current =
+        recorder
 
-          return [...prev, screenshot]
-        })
-      }
+      setRecording(true)
+    }
 
-      // delay giữa các ảnh
-      await new Promise((resolve) =>
-        setTimeout(resolve, 800)
+  const stopRecording =
+    async (): Promise<Blob | null> => {
+
+      return new Promise(
+        (resolve) => {
+
+          const recorder =
+            mediaRecorderRef.current
+
+          if (!recorder) {
+
+            resolve(null)
+
+            return
+          }
+
+          recorder.onstop =
+            () => {
+
+              const blob =
+                new Blob(
+                  recordedChunksRef.current,
+                  {
+                    type:
+                      "video/webm",
+                  }
+                )
+
+              setRecording(false)
+
+              resolve(blob)
+            }
+
+          recorder.stop()
+          recordingStreamRef.current
+  ?.getTracks()
+  .forEach(
+    (track) =>
+      track.stop()
+  )
+        }
       )
     }
+  const autoCapture = async () => {
+
+  const seconds =
+    parseInt(countdown)
+
+  const autoShots = 10
+
+const remaining =
+  autoShots
+
+  if (remaining <= 0)
+    return
+
+  // START VIDEO RECORD
+  await startRecording()
+setAutoMode(true)
+setImages([])
+  const capturedImages: string[] = []
+
+  for (
+    let shot = 0;
+    shot < remaining;
+    shot++
+  ) {
+
+    // COUNTDOWN
+    for (
+      let i = seconds;
+      i > 0;
+      i--
+    ) {
+
+      setCountdownNumber(i)
+
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            1000
+          )
+      )
+    }
+
+    setCountdownNumber(null)
+
+    // FLASH
+    triggerFlash()
+
+    // SOUND
+    shutterAudio.current?.play()
+
+    // CAPTURE
+    const screenshot =
+      webcamRef.current?.getScreenshot()
+
+    if (screenshot) {
+
+      capturedImages.push(
+        screenshot
+      )
+
+      setImages((prev) => [
+
+  ...prev,
+  screenshot,
+
+])
+    }
+
+    // WAIT
+    await new Promise(
+      (resolve) =>
+        setTimeout(
+          resolve,
+          800
+        )
+    )
   }
+
+  // STOP RECORD
+  const videoBlob =
+    await stopRecording()
+
+  if (videoBlob) {
+
+    const sessionCode =
+      Math.random()
+        .toString(36)
+        .substring(2, 8)
+        .toUpperCase()
+
+    const videoFileName =
+      `${sessionCode}.webm`
+
+    const upload =
+      await supabase.storage
+        .from(
+          "photobooth-videos"
+        )
+        .upload(
+          videoFileName,
+          videoBlob,
+          {
+            contentType:
+              "video/webm",
+            upsert: true,
+          }
+        )
+
+    console.log(upload)
+
+    const { data } =
+      supabase.storage
+        .from(
+          "photobooth-videos"
+        )
+        .getPublicUrl(
+          videoFileName
+        )
+
+    localStorage.setItem(
+      "photobooth-video",
+      data.publicUrl
+    )
+
+    setVideoUrl(
+      data.publicUrl
+    )
+  }
+}
 
   return (
     <main className="
@@ -218,15 +439,14 @@ if (
           text-pink-500
           drop-shadow
         ">
-          ✨ NSVD's Memory Booth ✨
+          NSVD's Memory Booth
         </h1>
 
         <p className="text-zinc-500 mt-3 text-lg">
-          Mỗi lần chụp 08 ảnh, sau đó chọn những bức đẹp nhất để in tùy theo layout 💖
+          Made by Nguyen Dung - a member of 10A5-LVT
         </p>
 
       </div>
-
       {/* MAIN LAYOUT */}
       <div className="
         flex
@@ -247,8 +467,8 @@ if (
           flex-col
           items-center
         ">
-{/* TOP CONTROLS */}
-      <div className="
+          {/* TOP CONTROLS */}
+          <div className="
         flex
         gap-4
         mb-8
@@ -258,16 +478,16 @@ if (
         z-10
       ">
 
-        {/* layout */}
-        <div ref={layoutRef} className="relative">
+            {/* layout */}
+            <div ref={layoutRef} className="relative">
 
-          <p className="text-pink-500 font-bold mb-2">
-            Layout Ảnh
-          </p>
+              <p className="text-pink-500 font-bold mb-2">
+                Layout Ảnh
+              </p>
 
-          <button
-            onClick={() => setOpenLayout(!openLayout)}
-            className="
+              <button
+                onClick={() => setOpenLayout(!openLayout)}
+                className="
               w-52
               px-5 py-3
               rounded-2xl
@@ -279,15 +499,15 @@ if (
               hover:scale-[1.02]
               transition
             "
-          >
-            <span>{layout}</span>
+              >
+                <span>{layout}</span>
 
-            <ChevronDown size={20} />
-          </button>
+                <ChevronDown size={20} />
+              </button>
 
-          {openLayout && (
+              {openLayout && (
 
-            <div className="
+                <div className="
               absolute
               mt-2
               w-52
@@ -300,47 +520,47 @@ if (
               z-[999]
             ">
 
-              {[
-                "2×3 (6 ảnh)",
-                "2×2 (4 ảnh)",
-                "1×4 Strip",
-              ].map((item) => (
+                  {[
+                    "2×3 (6 ảnh)",
+                    "2×2 (4 ảnh)",
+                    "1×4 Strip",
+                  ].map((item) => (
 
-                <button
-                  key={item}
-                  onClick={() => {
-                    setLayout(item)
-                    setOpenLayout(false)
-                  }}
-                  className="
+                    <button
+                      key={item}
+                      onClick={() => {
+                        setLayout(item)
+                        setOpenLayout(false)
+                      }}
+                      className="
                     w-full
                     text-left
                     px-5 py-3
                     hover:bg-pink-100
                     transition
                   "
-                >
-                  {item}
-                </button>
+                    >
+                      {item}
+                    </button>
 
-              ))}
+                  ))}
+
+                </div>
+
+              )}
 
             </div>
 
-          )}
+            {/* countdown */}
+            <div ref={countdownRef} className="relative">
 
-        </div>
+              <p className="text-purple-500 font-bold mb-2">
+                Đếm Ngược
+              </p>
 
-        {/* countdown */}
-        <div ref={countdownRef} className="relative">
-
-          <p className="text-purple-500 font-bold mb-2">
-            Đếm Ngược
-          </p>
-
-          <button
-            onClick={() => setOpenCountdown(!openCountdown)}
-            className="
+              <button
+                onClick={() => setOpenCountdown(!openCountdown)}
+                className="
               w-40
               px-5 py-3
               rounded-2xl
@@ -352,15 +572,15 @@ if (
               hover:scale-[1.02]
               transition
             "
-          >
-            <span>{countdown}</span>
+              >
+                <span>{countdown}</span>
 
-            <ChevronDown size={20} />
-          </button>
+                <ChevronDown size={20} />
+              </button>
 
-          {openCountdown && (
+              {openCountdown && (
 
-            <div className="
+                <div className="
               absolute
               mt-2
               w-40
@@ -373,57 +593,57 @@ if (
               z-[999]
             ">
 
-              {["3s", "5s", "10s"].map((item) => (
+                  {["3s", "5s", "10s"].map((item) => (
 
-                <button
-                  key={item}
-                  onClick={() => {
-                    setCountdown(item)
-                    setOpenCountdown(false)
-                  }}
-                  className="
+                    <button
+                      key={item}
+                      onClick={() => {
+                        setCountdown(item)
+                        setOpenCountdown(false)
+                      }}
+                      className="
                     w-full
                     text-left
                     px-5 py-3
                     hover:bg-purple-100
                     transition
                   "
-                >
-                  {item}
-                </button>
+                    >
+                      {item}
+                    </button>
 
-              ))}
+                  ))}
+
+                </div>
+
+              )}
 
             </div>
-
-          )}
-
-        </div>
-{/* CAMERA SELECT */}
-{!isMobile && (
-<div
-  ref={cameraRef}
-  className="
+            {/* CAMERA SELECT */}
+            {!isMobile && (
+              <div
+                ref={cameraRef}
+                className="
     relative
     mt-6
     z-20
   "
->
+              >
 
-  <p className="
+                <p className="
     text-blue-500
     font-bold
     mb-2
     text-center
   ">
-    Camera
-  </p>
+                  Camera
+                </p>
 
-  <button
-    onClick={() =>
-      setOpenCameraSelect(!openCameraSelect)
-    }
-    className="
+                <button
+                  onClick={() =>
+                    setOpenCameraSelect(!openCameraSelect)
+                  }
+                  className="
       w-52
       px-5 py-3
       rounded-2xl
@@ -435,23 +655,23 @@ if (
       hover:scale-[1.02]
       transition
     "
-  >
+                >
 
-    <span className="truncate">
+                  <span className="truncate">
 
-      {devices.find(
-        (d) => d.deviceId === selectedDevice
-      )?.label || "Choose Camera"}
+                    {devices.find(
+                      (d) => d.deviceId === selectedDevice
+                    )?.label || "Choose Camera"}
 
-    </span>
+                  </span>
 
-    <ChevronDown size={20} />
+                  <ChevronDown size={20} />
 
-  </button>
+                </button>
 
-  {openCameraSelect && (
+                {openCameraSelect && (
 
-    <div className="
+                  <div className="
       absolute
       mt-2
       w-72
@@ -466,91 +686,89 @@ if (
       overflow-y-auto
     ">
 
-      {devices.map((device) => (
+                    {devices.map((device) => (
 
-        <button
-          key={device.deviceId}
-          onClick={() => {
+                      <button
+                        key={device.deviceId}
+                        onClick={() => {
 
-            setSelectedDevice(device.deviceId)
+                          setSelectedDevice(device.deviceId)
 
-            setOpenCameraSelect(false)
-          }}
-          className="
+                          setOpenCameraSelect(false)
+                        }}
+                        className="
             w-full
             text-left
             px-5 py-3
             hover:bg-blue-100
             transition
           "
-        >
-          {device.label || "Camera"}
-        </button>
+                      >
+                        {device.label || "Camera"}
+                      </button>
 
-      ))}
+                    ))}
 
-    </div>
+                  </div>
 
-  )}
+                )}
 
-</div> )}
-{/* MOBILE CAMERA SWITCH */}
-{isMobile && (
+              </div>)}
+            {/* MOBILE CAMERA SWITCH */}
+            {isMobile && (
 
-  <div className="
+              <div className="
     flex
     gap-3
     items-end
   ">
 
-    <button
-      onClick={() =>
-        setFacingMode("user")
-      }
-      className={`
+                <button
+                  onClick={() =>
+                    setFacingMode("user")
+                  }
+                  className={`
         px-5 py-3
         rounded-2xl
         font-bold
         shadow-lg
         transition
-        ${
-          facingMode === "user"
-            ? "bg-pink-400 text-white"
-            : "bg-white/80 text-zinc-700"
-        }
+        ${facingMode === "user"
+                      ? "bg-pink-400 text-white"
+                      : "bg-white/80 text-zinc-700"
+                    }
       `}
-    >
-      🤳 Cam trước
-    </button>
+                >
+                  🤳 Cam trước
+                </button>
 
-    <button
-      onClick={() =>
-        setFacingMode("environment")
-      }
-      className={`
+                <button
+                  onClick={() =>
+                    setFacingMode("environment")
+                  }
+                  className={`
         px-5 py-3
         rounded-2xl
         font-bold
         shadow-lg
         transition
-        ${
-          facingMode === "environment"
-            ? "bg-pink-400 text-white"
-            : "bg-white/80 text-zinc-700"
-        }
+        ${facingMode === "environment"
+                      ? "bg-pink-400 text-white"
+                      : "bg-white/80 text-zinc-700"
+                    }
       `}
-    >
-      📷 Cam sau
-    </button>
+                >
+                  📷 Cam sau
+                </button>
 
-  </div>
+              </div>
 
-)}
-        {/* preview button */}
-        <div className="flex items-end">
+            )}
+            {/* preview button */}
+            <div className="flex items-end">
 
-          <button
-            className="
+              <button
+                className="
               px-6 py-3
               rounded-2xl
               bg-pink-200
@@ -561,14 +779,21 @@ if (
               transition
               hover:scale-105
             "
-          >
-            Xem Khung
-          </button>
+              >
+                Xem Khung
+              </button>
 
-        </div>
-        </div>
+            </div>
+          </div>
           {/* CAMERA */}
-          <div className="relative z-0 w-full flex justify-center">
+          <div className="
+  relative
+  z-0
+  w-full
+  flex
+  justify-center
+  items-center
+">
 
             {/* stickers */}
             <div className="
@@ -593,93 +818,87 @@ if (
               ✨
             </div>
 
-            {/* countdown */}
-            {countdownNumber !== null && (
+            <div
+              className={`
+    relative
+    w-full
+    max-w-xl
+    ${cameraAspect}
+    overflow-hidden
+    rounded-[32px]
+    border-8
+    border-white/70
+    shadow-2xl
+    bg-black
+  `}
+            >
+{/* countdown */}
+{countdownNumber !== null && (
 
-              <div className="
-                absolute
-                inset-0
-                flex items-center justify-center
-                z-30
-                pointer-events-none
-              ">
+  <div className="
+    absolute
+    top-4
+    right-4
+    z-50
+    pointer-events-none
+  ">
 
-                <div className="
-                  w-28
-                  h-28
-                  rounded-full
-                  bg-black/55
-                  backdrop-blur-md
-                  border-4
-                  border-white/40
-                  flex items-center justify-center
-                  shadow-2xl
-                ">
+    <span className="
+      text-5xl
+      md:text-6xl
+      font-black
+      text-white
+      drop-shadow-[0_0_12px_rgba(0,0,0,0.95)]
+      animate-pulse
+      leading-none
+    ">
+      {countdownNumber}
+    </span>
 
-                  <span className="
-                    text-5xl
-                    font-black
-                    text-white
-                    animate-pulse
-                  ">
-                    {countdownNumber}
-                  </span>
+  </div>
 
-                </div>
-
-              </div>
-
-            )}
-
-            <Webcam
-  key={
-  isMobile
-    ? `mobile-${facingMode}`
-    : `desktop-${selectedDevice}`
-}
-              ref={webcamRef}
-              screenshotFormat="image/png"
-              mirrored={
-  isMobile
-    ? facingMode === "user"
-    : true
-}
-              videoConstraints={
-  isMobile
-    ? {
-        width: 1280,
-        height: 720,
-        facingMode: {
-  exact: facingMode,
-},
-      }
-    : {
-        width: 1280,
-        height: 720,
-        deviceId: {
-          exact: selectedDevice,
-        },
-      }
-}
-              className="
-                w-full
-                max-w-4xl
-                aspect-video
-                rounded-[32px]
-                border-8
-                border-white/70
-                shadow-2xl
-                backdrop-blur-xl
-                hover:scale-[1.01]
-                transition
-                duration-300
-              "
-            />
-
+)}
+              <Webcam
+                key={
+                  isMobile
+                    ? `mobile-${facingMode}`
+                    : `desktop-${selectedDevice}`
+                }
+                ref={webcamRef}
+                screenshotFormat="image/png"
+                mirrored={
+                  isMobile
+                    ? facingMode === "user"
+                    : true
+                }
+                videoConstraints={
+                  isMobile
+                    ? {
+                      width: 1280,
+                      height: 720,
+                      facingMode: {
+                        exact: facingMode,
+                      },
+                    }
+                    : {
+                      width: 1280,
+                      height: 720,
+                      deviceId: {
+                        exact: selectedDevice,
+                      },
+                    }
+                }
+                className="
+  w-full
+  h-full
+  object-cover
+"
+              />
+            </div>
           </div>
 
           {/* BUTTONS */}
-          
+
           <div className="
             w-full
             flex
@@ -778,18 +997,32 @@ if (
   mb-6
 ">
 
-  <h2 className="
+            <h2 className="
     text-2xl
     font-black
     text-pink-500
   ">
-    Preview ✨
-  </h2>
+              Preview ✨
+            </h2>
 
-  {images.length >= 4 && (
+            {images.length >= requiredPhotos && (
 
-    <button
-      className="
+              <button
+                onClick={() => {
+
+                  localStorage.setItem(
+                    "photobooth-images",
+                    JSON.stringify(images)
+                  )
+
+                  localStorage.setItem(
+                    "photobooth-layout",
+                    layout
+                  )
+
+                  router.push("/download")
+                }}
+                className="
         px-4 py-2
         rounded-xl
         bg-pink-400
@@ -801,13 +1034,13 @@ if (
         transition
         hover:scale-105
       "
-    >
-      🎞️ Tạo ảnh
-    </button>
+              >
+                🎞️ Tạo ảnh
+              </button>
 
-  )}
+            )}
 
-</div>
+          </div>
 
           {images.length > 0 ? (
 
@@ -827,23 +1060,54 @@ if (
                   <img
                     src={img}
                     alt={`capture-${index}`}
-                    className="
-                      w-full
-                      aspect-video
-                      object-contain
-                      rounded-2xl
-                      border-4
-                      border-white
-                      shadow-md
-                    "
+                    className={`
+  w-full
+  ${layout === "2×2 (4 ảnh)"
+                        ? "aspect-[3/4]"
+                        : "aspect-video"
+                      }
+  object-cover
+  rounded-2xl
+  border-4
+  border-white
+  shadow-md
+`}
                   />
 
                   <button
                     onClick={() => {
-                      setImages((prev) =>
-                        prev.filter((_, i) => i !== index)
-                      )
-                    }}
+
+  if (!autoMode) {
+
+    setImages((prev) =>
+      prev.filter((_, i) => i !== index)
+    )
+
+    return
+  }
+
+  setImages((prev) => {
+
+    const exists =
+      prev.includes(img)
+
+    if (exists) {
+
+      return prev.filter(
+        (item) => item !== img
+      )
+    }
+
+    if (
+      prev.length >=
+      requiredPhotos
+    ) {
+      return prev
+    }
+
+    return [...prev, img]
+  })
+}}
                     className="
                       absolute
                       top-3
@@ -869,19 +1133,22 @@ if (
 
           ) : (
 
-            <div className="
-              aspect-[3/4]
-              rounded-3xl
-              border-2
-              border-dashed
-              border-pink-200
-              flex
-              items-center
-              justify-center
-              text-zinc-400
-              text-center
-              p-6
-            ">
+            <div className={`
+  ${layout === "2×2 (4 ảnh)"
+                ? "aspect-[3/4]"
+                : "aspect-video"
+              }
+  rounded-3xl
+  border-2
+  border-dashed
+  border-pink-200
+  flex
+  items-center
+  justify-center
+  text-zinc-400
+  text-center
+  p-6
+`}>
 
               <div className="
                 flex
@@ -904,19 +1171,44 @@ if (
 
           )}
 
-          <div className="
-            mt-6
-            text-center
-            text-sm
-            text-zinc-500
-          ">
-            {images.length}/8 photos captured ✨
+          <div className={`
+  mt-6
+  text-center
+  text-sm
+  font-semibold
+  transition
+  ${images.length >= requiredPhotos
+              ? "text-pink-500"
+              : "text-zinc-500"
+            }
+`}>
+            {images.length}/{requiredPhotos} photos needed ✨
           </div>
 
         </div>
 
       </div>
+{/* RECORDING */}
+{recording && (
 
+  <div className="
+    fixed
+    top-6
+    right-6
+    z-[99999]
+    bg-red-500
+    text-white
+    px-5
+    py-3
+    rounded-full
+    font-black
+    shadow-2xl
+    animate-pulse
+  ">
+    🔴 REC
+  </div>
+
+)}
       {/* FLASH */}
       {flash && (
 
@@ -945,17 +1237,20 @@ if (
           p-6
         ">
 
-          <div className="
+          <div className={`
   bg-white/95
   backdrop-blur-xl
   rounded-[40px]
   p-8
-  w-[95vw]
-  h-[92vh]
   shadow-2xl
   flex
   flex-col
-">
+  ${layout === "2×2 (4 ảnh)"
+              ? "w-[520px]"
+              : "w-[1000px]"
+            }
+  max-w-[95vw]
+`}>
 
             <h2 className="
               text-3xl
@@ -968,17 +1263,17 @@ if (
             </h2>
 
             <div className="
-  flex-1
+  
   flex
   items-center
   justify-center
   overflow-hidden
 ">
 
-  <img
-    src={previewImage}
-    alt="preview"
-    className="
+              <img
+                src={previewImage}
+                alt="preview"
+                className="
       w-full
       h-full
       max-h-[70vh]
@@ -989,10 +1284,10 @@ if (
       shadow-lg
       bg-black
     "
-  />
+              />
 
-</div>
-<div className="
+            </div>
+            <div className="
   flex
   gap-4
   mt-6
@@ -1016,9 +1311,14 @@ if (
 
               {/* save */}
               <button
+                disabled={
+  images.length >= 10
+}
                 onClick={() => {
 
-                  if (images.length >= 8) return
+                  if (
+  images.length >= 10
+) return
 
                   setImages((prev) => [
                     ...prev,
@@ -1038,6 +1338,8 @@ if (
                   font-bold
                   shadow-lg
                   transition
+                  disabled:opacity-50
+disabled:cursor-not-allowed
                 "
               >
                 Lưu ảnh
