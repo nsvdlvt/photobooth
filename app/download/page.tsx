@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
 import { X, Download } from "lucide-react"
-import domtoimage from "dom-to-image-more"
+let domtoimage: any = null
 import QRCode from "react-qr-code"
 
 type Slot = {
@@ -214,6 +214,15 @@ const downloadImage = async () => {
     }
 
     // CREATE IMAGE
+    if (!domtoimage) {
+
+  domtoimage =
+    (
+      await import(
+        "dom-to-image-more"
+      )
+    ).default
+}
     const dataUrl =
       await domtoimage.toPng(
         frame,
