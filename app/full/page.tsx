@@ -557,7 +557,7 @@ export default function Home() {
   <button
     onClick={() => {
 
-      router.push("/full")
+      router.push("/")
     }}
     className="
       fixed
@@ -587,7 +587,7 @@ export default function Home() {
       transition
     "
   >
-    🔁 Switch Mode
+    🔁 Go Back
   </button>
 
 )}
@@ -625,7 +625,406 @@ export default function Home() {
           flex-col
           items-center
         ">
+{/* TOP CONTROLS */}
+<div className="
+  flex
+  gap-4
+  mb-8
+  flex-wrap
+  items-end
+  justify-center
+  z-10
+">
 
+  {/* LAYOUT */}
+  <div
+    ref={layoutRef}
+    className="relative"
+  >
+
+    <p className="
+      text-pink-500
+      font-bold
+      mb-2
+    ">
+      Layout Ảnh
+    </p>
+
+    <button
+      onClick={() =>
+        setOpenLayout(
+          !openLayout
+        )
+      }
+      className="
+        w-52
+        px-5
+        py-3
+        rounded-2xl
+        bg-white/80
+        backdrop-blur-xl
+        border
+        border-pink-200
+        shadow-lg
+        flex
+        items-center
+        justify-between
+      "
+    >
+
+      <span>
+        {layout}
+      </span>
+
+      <ChevronDown
+        size={20}
+      />
+
+    </button>
+
+    {openLayout && (
+
+      <div className="
+        absolute
+        mt-2
+        w-52
+        bg-white/90
+        backdrop-blur-xl
+        rounded-2xl
+        shadow-2xl
+        border
+        border-pink-100
+        overflow-hidden
+        z-[999]
+      ">
+
+        {[
+          "2×3 (6 ảnh)",
+          "2×2 (4 ảnh)",
+          "1×4 Strip",
+        ].map((item) => (
+
+          <button
+            key={item}
+            onClick={() => {
+
+              setLayout(item)
+
+              setOpenLayout(
+                false
+              )
+            }}
+            className="
+              w-full
+              text-left
+              px-5
+              py-3
+              hover:bg-pink-100
+            "
+          >
+            {item}
+          </button>
+
+        ))}
+
+      </div>
+
+    )}
+
+  </div>
+
+  {/* COUNTDOWN */}
+  <div
+    ref={countdownRef}
+    className="relative"
+  >
+
+    <p className="
+      text-purple-500
+      font-bold
+      mb-2
+    ">
+      Đếm Ngược
+    </p>
+
+    <button
+      onClick={() =>
+        setOpenCountdown(
+          !openCountdown
+        )
+      }
+      className="
+        w-40
+        px-5
+        py-3
+        rounded-2xl
+        bg-white/80
+        backdrop-blur-xl
+        border
+        border-purple-200
+        shadow-lg
+        flex
+        items-center
+        justify-between
+      "
+    >
+
+      <span>
+        {countdown}
+      </span>
+
+      <ChevronDown
+        size={20}
+      />
+
+    </button>
+
+    {openCountdown && (
+
+      <div className="
+        absolute
+        mt-2
+        w-40
+        bg-white/90
+        backdrop-blur-xl
+        rounded-2xl
+        shadow-2xl
+        border
+        border-purple-100
+        overflow-hidden
+        z-[999]
+      ">
+
+        {[
+          "3s",
+          "5s",
+          "10s",
+        ].map((item) => (
+
+          <button
+            key={item}
+            onClick={() => {
+
+              setCountdown(
+                item
+              )
+
+              setOpenCountdown(
+                false
+              )
+            }}
+            className="
+              w-full
+              text-left
+              px-5
+              py-3
+              hover:bg-purple-100
+            "
+          >
+            {item}
+          </button>
+
+        ))}
+
+      </div>
+
+    )}
+
+  </div>
+
+  {/* DESKTOP CAMERA */}
+  {!isMobile && (
+
+    <div
+      ref={cameraRef}
+      className="
+        relative
+      "
+    >
+
+      <p className="
+        text-blue-500
+        font-bold
+        mb-2
+      ">
+        Camera
+      </p>
+
+      <button
+        onClick={() =>
+          setOpenCameraSelect(
+            !openCameraSelect
+          )
+        }
+        className="
+          w-64
+          px-5
+          py-3
+          rounded-2xl
+          bg-white/80
+          backdrop-blur-xl
+          border
+          border-blue-200
+          shadow-lg
+          flex
+          items-center
+          justify-between
+        "
+      >
+
+        <span className="
+          truncate
+        ">
+
+          {devices.find(
+            (d) =>
+              d.deviceId ===
+              selectedDevice
+          )?.label ||
+            "Choose Camera"}
+
+        </span>
+
+        <ChevronDown
+          size={20}
+        />
+
+      </button>
+
+      {openCameraSelect && (
+
+        <div className="
+          absolute
+          mt-2
+          w-72
+          bg-white/90
+          backdrop-blur-xl
+          rounded-2xl
+          shadow-2xl
+          border
+          border-blue-100
+          overflow-hidden
+          z-[999]
+          max-h-52
+          overflow-y-auto
+        ">
+
+          {devices.map(
+            (device) => (
+
+              <button
+                key={
+                  device.deviceId
+                }
+                onClick={() => {
+
+                  setSelectedDevice(
+                    device.deviceId
+                  )
+
+                  setOpenCameraSelect(
+                    false
+                  )
+                }}
+                className="
+                  w-full
+                  text-left
+                  px-5
+                  py-3
+                  hover:bg-blue-100
+                "
+              >
+
+                {device.label ||
+                  "Camera"}
+
+              </button>
+
+            )
+          )}
+
+        </div>
+
+      )}
+
+    </div>
+
+  )}
+
+  {/* MOBILE SWITCH */}
+  {isMobile && (
+
+    <div className="
+      flex
+      gap-3
+      items-end
+    ">
+
+      <button
+        onClick={() =>
+          setFacingMode(
+            "user"
+          )
+        }
+        className={`
+          px-5
+          py-3
+          rounded-2xl
+          font-bold
+          shadow-lg
+
+          ${
+            facingMode ===
+            "user"
+              ? `
+                bg-pink-400
+                text-white
+              `
+              : `
+                bg-white/80
+                text-zinc-700
+              `
+          }
+        `}
+      >
+        🤳 Cam trước
+      </button>
+
+      <button
+        onClick={() =>
+          setFacingMode(
+            "environment"
+          )
+        }
+        className={`
+          px-5
+          py-3
+          rounded-2xl
+          font-bold
+          shadow-lg
+
+          ${
+            facingMode ===
+            "environment"
+              ? `
+                bg-pink-400
+                text-white
+              `
+              : `
+                bg-white/80
+                text-zinc-700
+              `
+          }
+        `}
+      >
+        📷 Cam sau
+      </button>
+
+    </div>
+
+  )}
+
+</div>
           {/* CAMERA */}
           <div className="
             relative
