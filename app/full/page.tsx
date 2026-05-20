@@ -4,71 +4,65 @@ import Webcam from "react-webcam"
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronDown } from "lucide-react"
-import { supabase } from "@/lib/supabase"
 
-export default function Home() {
+export default function FullPage() {
+const [isDesktop, setIsDesktop] =
+  useState(false)
 
+useEffect(() => {
+
+  setIsDesktop(
+    window.innerWidth >= 1024
+  )
+
+}, [])
   const router = useRouter()
-
+const [enableRecap, setEnableRecap] =
+  useState(true)
+  const [capturing, setCapturing] =
+  useState(false)
   const webcamRef =
     useRef<Webcam>(null)
+    const mediaRecorderRef =
+  useRef<MediaRecorder | null>(
+    null
+  )
 
+const recordedChunksRef =
+  useRef<Blob[]>([])
+const previewTimerRef =
+  useRef<NodeJS.Timeout | null>(
+    null
+  )
+  const previewResolveRef =
+  useRef<
+    (() => void) | null
+  >(null)
   const shutterAudio =
     useRef<HTMLAudioElement | null>(
       null
     )
-
-  const mediaRecorderRef =
-    useRef<MediaRecorder | null>(
-      null
-    )
-
-  const recordingStreamRef =
-    useRef<MediaStream | null>(
-      null
-    )
-
-  const recordedChunksRef =
-    useRef<Blob[]>([])
-
-  const stopAutoCaptureRef =
-    useRef(false)
-
-  const layoutRef =
-    useRef<HTMLDivElement>(null)
-
-  const countdownRef =
-    useRef<HTMLDivElement>(null)
-
-  const cameraRef =
-    useRef<HTMLDivElement>(null)
-
-  const [flash, setFlash] =
-    useState(false)
 
   const [images, setImages] =
     useState<string[]>([])
 
   const [previewImage, setPreviewImage] =
     useState<string | null>(null)
+    const previewImageRef =
+  useRef<string | null>(null)
+const [waitingPreviewClose, setWaitingPreviewClose] =
+  useState(false)
+  const [saveCountdown, setSaveCountdown] =
+    useState(5)
+
+  const [countdownNumber, setCountdownNumber] =
+    useState<number | null>(null)
 
   const [layout, setLayout] =
     useState("2×3 (6 ảnh)")
 
   const [countdown, setCountdown] =
-    useState("3s")
-
-  const [countdownNumber, setCountdownNumber] =
-    useState<number | null>(null)
-
-  const [recording, setRecording] =
-    useState(false)
-
-  const [autoMode, setAutoMode] =
-    useState(false)
-
-  const [enableRecap, setEnableRecap] =
-    useState(true)
+    useState("5s")
 
   const [devices, setDevices] =
     useState<MediaDeviceInfo[]>([])
@@ -80,9 +74,6 @@ export default function Home() {
     useState(false)
 
   const [openCountdown, setOpenCountdown] =
-    useState(false)
-
-  const [openCameraSelect, setOpenCameraSelect] =
     useState(false)
 
   const [isMobile, setIsMobile] =
@@ -98,20 +89,18 @@ export default function Home() {
       ? 6
       : 4
 
-  const cameraAspect =
-    isMobile
-      ? "aspect-[3/4]"
-      : layout === "2×2 (4 ảnh)"
-        ? "aspect-[3/4]"
-        : "aspect-video"
-
   useEffect(() => {
 
     shutterAudio.current =
       new Audio("/shutter.mp3")
 
   }, [])
+useEffect(() => {
 
+  previewImageRef.current =
+    previewImage
+
+}, [previewImage])
   useEffect(() => {
 
     const mobileCheck =
@@ -128,17 +117,22 @@ export default function Home() {
     const getDevices = async () => {
 
       const mediaDevices =
-        await navigator.mediaDevices.enumerateDevices()
+        await navigator
+          .mediaDevices
+          .enumerateDevices()
 
       const videoDevices =
         mediaDevices.filter(
           (device) =>
-            device.kind === "videoinput"
+            device.kind ===
+            "videoinput"
         )
 
       setDevices(videoDevices)
 
-      if (videoDevices.length > 0) {
+      if (
+        videoDevices.length > 0
+      ) {
 
         setSelectedDevice(
           videoDevices[0].deviceId
@@ -150,910 +144,289 @@ export default function Home() {
 
   }, [])
 
-  useEffect(() => {
+  const startPreviewTimer =
+  async (
+    image: string
+  ): Promise<void> => {
 
-    const handleClickOutside =
-      (event: MouseEvent) => {
+    return new Promise(
+      (resolve) => {
+previewResolveRef.current =
+  resolve
+        setPreviewImage(image)
 
-        if (
-          cameraRef.current &&
-          !cameraRef.current.contains(
-            event.target as Node
-          )
-        ) {
+setWaitingPreviewClose(true)
 
-          setOpenCameraSelect(false)
-        }
+        let time = 5
 
-        if (
-          layoutRef.current &&
-          !layoutRef.current.contains(
-            event.target as Node
-          )
-        ) {
-
-          setOpenLayout(false)
-        }
+        setSaveCountdown(time)
 
         if (
-          countdownRef.current &&
-          !countdownRef.current.contains(
-            event.target as Node
-          )
+          previewTimerRef.current
         ) {
 
-          setOpenCountdown(false)
+          clearInterval(
+            previewTimerRef.current
+          )
         }
+
+        previewTimerRef.current =
+          setInterval(() => {
+
+            time--
+
+            setSaveCountdown(time)
+
+            if (time <= 0) {
+
+              if (
+                previewTimerRef.current
+              ) {
+
+                clearInterval(
+                  previewTimerRef.current
+                )
+              }
+
+              setImages((prev) => [
+                ...prev,
+                image,
+              ])
+              previewImageRef.current = null
+              setPreviewImage(null)
+
+setWaitingPreviewClose(false)
+
+previewResolveRef.current?.()
+previewResolveRef.current =
+  null
+            }
+
+          }, 1000)
       }
-
-    document.addEventListener(
-      "mousedown",
-      handleClickOutside
     )
+  }
+  const capture =
+  async (): Promise<void> => {
 
-    return () => {
+    const seconds =
+      parseInt(countdown)
 
-      document.removeEventListener(
-        "mousedown",
-        handleClickOutside
+    for (
+      let i = seconds;
+      i > 0;
+      i--
+    ) {
+
+      setCountdownNumber(i)
+
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            1000
+          )
       )
     }
 
-  }, [])
-
-  const triggerFlash = () => {
-
-    setFlash(true)
-
-    setTimeout(() => {
-
-      setFlash(false)
-
-    }, 150)
-  }
-
-  const capture = () => {
-
-    triggerFlash()
+    setCountdownNumber(null)
 
     shutterAudio.current?.play()
 
+    await new Promise(
+      (resolve) =>
+        setTimeout(
+          resolve,
+          150
+        )
+    )
+
     const screenshot =
-      webcamRef.current?.getScreenshot()
+      webcamRef.current
+        ?.getScreenshot()
 
-    if (screenshot) {
+    if (!screenshot)
+      return
 
-      setPreviewImage(screenshot)
-    }
+    await startPreviewTimer(
+      screenshot
+    )
   }
-
   const startRecording =
-    async () => {
+  async () => {
 
-      const stream =
-        await navigator
-          .mediaDevices
-          .getUserMedia({
+    const stream =
+      webcamRef.current
+        ?.video
+        ?.srcObject as MediaStream
 
-            video: {
-              width: 640,
-              height: 360,
-              frameRate: 24,
-            },
+    if (!stream)
+      return
 
-            audio: false,
-          })
+    recordedChunksRef.current =
+      []
 
-      recordingStreamRef.current =
-        stream
-
-      recordedChunksRef.current =
-        []
-
-      const mimeType =
-        MediaRecorder.isTypeSupported(
-          "video/webm;codecs=vp9"
-        )
-          ? "video/webm;codecs=vp9"
-          : "video/webm"
-
-      const recorder =
-        new MediaRecorder(
-          stream,
-          {
-            mimeType,
-            videoBitsPerSecond:
-              250000,
-          }
-        )
-
-      recorder.ondataavailable =
-        (event) => {
-
-          if (
-            event.data.size > 0
-          ) {
-
-            recordedChunksRef.current.push(
-              event.data
-            )
-          }
-        }
-
-      recorder.start()
-
-      mediaRecorderRef.current =
-        recorder
-
-      setRecording(true)
-    }
-
-  const stopRecording =
-    async (): Promise<Blob | null> => {
-
-      return new Promise(
-        (resolve) => {
-
-          const recorder =
-            mediaRecorderRef.current
-
-          if (
-            !recorder ||
-            recorder.state ===
-            "inactive"
-          ) {
-
-            resolve(null)
-
-            return
-          }
-
-          recorder.onstop =
-            () => {
-
-              const blob =
-                new Blob(
-                  recordedChunksRef.current,
-                  {
-                    type:
-                      "video/webm",
-                  }
-                )
-
-              recordingStreamRef.current
-                ?.getTracks()
-                .forEach(
-                  (track) =>
-                    track.stop()
-                )
-
-              setRecording(false)
-
-              resolve(blob)
-            }
-
-          recorder.stop()
+    const recorder =
+      new MediaRecorder(
+        stream,
+        {
+          mimeType:
+            "video/webm",
         }
       )
-    }
 
-  const autoCapture =
-    async () => {
-
-      if (autoMode)
-        return
-
-      setAutoMode(true)
-
-      stopAutoCaptureRef.current =
-        false
-
-      setImages([])
-
-      const seconds =
-        parseInt(countdown)
-
-      const autoShots = 10
-
-      if (enableRecap) {
-
-        await startRecording()
-      }
-
-      for (
-        let shot = 0;
-        shot < autoShots;
-        shot++
-      ) {
+    recorder.ondataavailable =
+      (event) => {
 
         if (
-          stopAutoCaptureRef.current
+          event.data.size > 0
         ) {
-          break
+
+          recordedChunksRef.current
+            .push(event.data)
         }
+      }
 
-        for (
-          let i = seconds;
-          i > 0;
-          i--
-        ) {
+    recorder.start()
 
-          if (
-            stopAutoCaptureRef.current
-          ) {
+    mediaRecorderRef.current =
+      recorder
+  }
+  const stopRecording =
+  async () => {
 
-            setCountdownNumber(null)
+    return new Promise<Blob>(
+      (resolve) => {
 
-            break
+        const recorder =
+          mediaRecorderRef.current
+
+        if (!recorder)
+          return
+
+        recorder.onstop =
+          () => {
+
+            const blob =
+              new Blob(
+                recordedChunksRef.current,
+                {
+                  type:
+                    "video/webm",
+                }
+              )
+
+            resolve(blob)
           }
 
-          setCountdownNumber(i)
-
-          await new Promise(
-            (resolve) =>
-              setTimeout(
-                resolve,
-                1000
-              )
-          )
-        }
-
-        if (
-          stopAutoCaptureRef.current
-        ) {
-          break
-        }
-
-        setCountdownNumber(null)
-
-        triggerFlash()
-
-        shutterAudio.current?.play()
-
-        const screenshot =
-          webcamRef.current
-            ?.getScreenshot()
-
-        if (screenshot) {
-
-          setImages(
-            (prev) => [
-              ...prev,
-              screenshot,
-            ]
-          )
-        }
-
-        await new Promise(
-          (resolve) =>
-            setTimeout(
-              resolve,
-              800
-            )
-        )
+        recorder.stop()
       }
-
-      const videoBlob =
-        enableRecap
-          ? await stopRecording()
-          : null
-
-      if (videoBlob) {
-
-        const sessionCode =
-          Math.random()
-            .toString(36)
-            .substring(2, 8)
-            .toUpperCase()
-
-        const fileName =
-          `${sessionCode}.webm`
-
-        await supabase.storage
-          .from(
-            "photobooth-videos"
-          )
-          .upload(
-            fileName,
-            videoBlob,
-            {
-              contentType:
-                "video/webm",
-
-              upsert: true,
-            }
-          )
-
-        const { data } =
-          supabase.storage
-            .from(
-              "photobooth-videos"
-            )
-            .getPublicUrl(
-              fileName
-            )
-
-        localStorage.setItem(
-          "photobooth-video",
-          data.publicUrl
-        )
-      }
-
-      setAutoMode(false)
-    }
+    )
+  }
+if (!isDesktop) {
 
   return (
 
     <main className="
       min-h-screen
-      overflow-hidden
+      flex
+      items-center
+      justify-center
       bg-gradient-to-br
       from-pink-100
       via-rose-50
       to-purple-100
-      flex
-      flex-col
-      items-center
       p-6
-      relative
     ">
 
-      {/* FLASH */}
-      {flash && (
-
-        <div className="
-          fixed
-          inset-0
-          bg-white
-          z-[9999]
-          animate-pulse
-          pointer-events-none
-        " />
-
-      )}
-{/* CONVERT MODE */}
-{!isMobile && (
-
-  <button
-    onClick={() => {
-
-      router.push("/admin")
-    }}
-    className="
-      fixed
-      top-6
-      right-6
-      z-[99999]
-
-      px-5
-      py-3
-
-      rounded-2xl
-
-      bg-white/80
-      backdrop-blur-xl
-
-      border
-      border-pink-200
-
-      shadow-xl
-
-      text-pink-500
-      font-black
-
-      hover:scale-105
-      hover:bg-pink-100
-
-      transition
-    "
-  >
-    👤 Admin
-  </button>
-
-)}
-{/* GALLERY */}
-{!isMobile && (
-
-  <button
-    onClick={() => {
-
-      router.push("/")
-    }}
-    className="
-      fixed
-      top-6
-      left-6
-      z-[99999]
-
-      px-5
-      py-3
-
-      rounded-2xl
-
-      bg-white/80
-      backdrop-blur-xl
-
-      border
-      border-purple-200
-
-      shadow-xl
-
-      text-purple-500
-      font-black
-
-      hover:scale-105
-      hover:bg-purple-100
-
-      transition
-    "
-  >
-    🔁 Go Back
-  </button>
-
-)}
-      {/* HEADER */}
       <div className="
-        mb-10
+        bg-white
+        rounded-[32px]
+        shadow-2xl
+        p-10
+        max-w-md
         text-center
-        z-10
       ">
 
+        <div className="text-7xl mb-5">
+          💻
+        </div>
+
         <h1 className="
-          text-5xl
-          md:text-6xl
+          text-4xl
           font-black
           text-pink-500
+          mb-4
         ">
-          NSVD's Memory Booth
+          Desktop Only
         </h1>
+
+        <p className="
+          text-zinc-500
+          text-lg
+          leading-relaxed
+        ">
+          Trang Full Mode chỉ hỗ trợ
+          trên máy tính để có trải nghiệm
+          photobooth tốt nhất ✨
+        </p>
 
       </div>
 
+    </main>
+  )
+}
+  return (
+
+    <main className="
+      min-h-screen
+      bg-[#fdf0f6]
+      p-6
+      overflow-hidden
+    ">
+
       <div className="
         flex
-        flex-col
-        lg:flex-row
-        gap-8
-        w-full
-        max-w-7xl
+        items-start
+        gap-6
       ">
 
         {/* LEFT */}
         <div className="
           flex-1
-          flex
-          flex-col
-          items-center
-        ">
-{/* TOP CONTROLS */}
-<div className="
-  flex
-  gap-4
-  mb-8
-  flex-wrap
-  items-end
-  justify-center
-  z-10
-">
-
-  {/* LAYOUT */}
-  <div
-    ref={layoutRef}
-    className="relative"
-  >
-
-    <p className="
-      text-pink-500
-      font-bold
-      mb-2
-    ">
-      Layout Ảnh
-    </p>
-
-    <button
-      onClick={() =>
-        setOpenLayout(
-          !openLayout
-        )
-      }
-      className="
-        w-52
-        px-5
-        py-3
-        rounded-2xl
-        bg-white/80
-        backdrop-blur-xl
-        border
-        border-pink-200
-        shadow-lg
-        flex
-        items-center
-        justify-between
-      "
-    >
-
-      <span>
-        {layout}
-      </span>
-
-      <ChevronDown
-        size={20}
-      />
-
-    </button>
-
-    {openLayout && (
-
-      <div className="
-        absolute
-        mt-2
-        w-52
-        bg-white/90
-        backdrop-blur-xl
-        rounded-2xl
-        shadow-2xl
-        border
-        border-pink-100
-        overflow-hidden
-        z-[999]
-      ">
-
-        {[
-          "2×3 (6 ảnh)",
-          "2×2 (4 ảnh)",
-          "1×4 Strip",
-        ].map((item) => (
-
-          <button
-            key={item}
-            onClick={() => {
-
-              setLayout(item)
-
-              setOpenLayout(
-                false
-              )
-            }}
-            className="
-              w-full
-              text-left
-              px-5
-              py-3
-              hover:bg-pink-100
-            "
-          >
-            {item}
-          </button>
-
-        ))}
-
-      </div>
-
-    )}
-
-  </div>
-
-  {/* COUNTDOWN */}
-  <div
-    ref={countdownRef}
-    className="relative"
-  >
-
-    <p className="
-      text-purple-500
-      font-bold
-      mb-2
-    ">
-      Đếm Ngược
-    </p>
-
-    <button
-      onClick={() =>
-        setOpenCountdown(
-          !openCountdown
-        )
-      }
-      className="
-        w-40
-        px-5
-        py-3
-        rounded-2xl
-        bg-white/80
-        backdrop-blur-xl
-        border
-        border-purple-200
-        shadow-lg
-        flex
-        items-center
-        justify-between
-      "
-    >
-
-      <span>
-        {countdown}
-      </span>
-
-      <ChevronDown
-        size={20}
-      />
-
-    </button>
-
-    {openCountdown && (
-
-      <div className="
-        absolute
-        mt-2
-        w-40
-        bg-white/90
-        backdrop-blur-xl
-        rounded-2xl
-        shadow-2xl
-        border
-        border-purple-100
-        overflow-hidden
-        z-[999]
-      ">
-
-        {[
-          "3s",
-          "5s",
-          "10s",
-        ].map((item) => (
-
-          <button
-            key={item}
-            onClick={() => {
-
-              setCountdown(
-                item
-              )
-
-              setOpenCountdown(
-                false
-              )
-            }}
-            className="
-              w-full
-              text-left
-              px-5
-              py-3
-              hover:bg-purple-100
-            "
-          >
-            {item}
-          </button>
-
-        ))}
-
-      </div>
-
-    )}
-
-  </div>
-
-  {/* DESKTOP CAMERA */}
-  {!isMobile && (
-
-    <div
-      ref={cameraRef}
-      className="
-        relative
-      "
-    >
-
-      <p className="
-        text-blue-500
-        font-bold
-        mb-2
-      ">
-        Camera
-      </p>
-
-      <button
-        onClick={() =>
-          setOpenCameraSelect(
-            !openCameraSelect
-          )
-        }
-        className="
-          w-64
-          px-5
-          py-3
-          rounded-2xl
-          bg-white/80
-          backdrop-blur-xl
-          border
-          border-blue-200
-          shadow-lg
-          flex
-          items-center
-          justify-between
-        "
-      >
-
-        <span className="
-          truncate
         ">
 
-          {devices.find(
-            (d) =>
-              d.deviceId ===
-              selectedDevice
-          )?.label ||
-            "Choose Camera"}
-
-        </span>
-
-        <ChevronDown
-          size={20}
-        />
-
-      </button>
-
-      {openCameraSelect && (
-
-        <div className="
-          absolute
-          mt-2
-          w-72
-          bg-white/90
-          backdrop-blur-xl
-          rounded-2xl
-          shadow-2xl
-          border
-          border-blue-100
-          overflow-hidden
-          z-[999]
-          max-h-52
-          overflow-y-auto
-        ">
-
-          {devices.map(
-            (device) => (
-
-              <button
-                key={
-                  device.deviceId
-                }
-                onClick={() => {
-
-                  setSelectedDevice(
-                    device.deviceId
-                  )
-
-                  setOpenCameraSelect(
-                    false
-                  )
-                }}
-                className="
-                  w-full
-                  text-left
-                  px-5
-                  py-3
-                  hover:bg-blue-100
-                "
-              >
-
-                {device.label ||
-                  "Camera"}
-
-              </button>
-
-            )
-          )}
-
-        </div>
-
-      )}
-
-    </div>
-
-  )}
-
-  {/* MOBILE SWITCH */}
-  {isMobile && (
-
-    <div className="
-      flex
-      gap-3
-      items-end
-    ">
-
-      <button
-        onClick={() =>
-          setFacingMode(
-            "user"
-          )
-        }
-        className={`
-          px-5
-          py-3
-          rounded-2xl
-          font-bold
-          shadow-lg
-
-          ${
-            facingMode ===
-            "user"
-              ? `
-                bg-pink-400
-                text-white
-              `
-              : `
-                bg-white/80
-                text-zinc-700
-              `
-          }
-        `}
-      >
-        🤳 Cam trước
-      </button>
-
-      <button
-        onClick={() =>
-          setFacingMode(
-            "environment"
-          )
-        }
-        className={`
-          px-5
-          py-3
-          rounded-2xl
-          font-bold
-          shadow-lg
-
-          ${
-            facingMode ===
-            "environment"
-              ? `
-                bg-pink-400
-                text-white
-              `
-              : `
-                bg-white/80
-                text-zinc-700
-              `
-          }
-        `}
-      >
-        📷 Cam sau
-      </button>
-
-    </div>
-
-  )}
-
-</div>
           {/* CAMERA */}
-          <div className="
-            relative
-            w-full
-            max-w-xl
-            overflow-hidden
-            rounded-[32px]
-            border-8
-            border-white/70
-            shadow-2xl
-            bg-black
-            ${cameraAspect}
-          ">
+          <div className={`
+  relative
+  w-full
+  "w-24 aspect-[3/4]"
+  
+  rounded-[40px]
+  overflow-hidden
+  border-[14px]
+  border-zinc-300
+  bg-black
+  shadow-2xl
+`}>
 
             {/* COUNTDOWN */}
             {countdownNumber !== null && (
 
               <div className="
                 absolute
-                top-4
-                right-4
+                inset-0
                 z-50
+                flex
+                items-center
+                justify-center
+                bg-black/30
               ">
 
                 <span className="
-                  text-6xl
-                  font-black
                   text-white
-                  drop-shadow-[0_0_12px_rgba(0,0,0,1)]
+                  text-[200px]
+                  font-black
                   animate-pulse
                 ">
                   {countdownNumber}
@@ -1064,7 +437,13 @@ export default function Home() {
             )}
 
             <Webcam
-              ref={webcamRef}
+  key={
+    isMobile
+      ? facingMode
+      : selectedDevice
+  }
+  ref={webcamRef}
+  forceScreenshotSourceSize
               screenshotFormat="image/png"
               mirrored={
                 isMobile
@@ -1074,23 +453,22 @@ export default function Home() {
               videoConstraints={
                 isMobile
                   ? {
-                    width: 720,
-                    height: 1280,
-
-                    facingMode: {
-                      exact:
-                        facingMode,
-                    },
-                  }
+                      width: 720,
+                      height: 1280,
+                      facingMode: {
+                        exact:
+                          facingMode,
+                      },
+                    }
                   : {
-                    width: 1280,
-                    height: 720,
+                      width: 1280,
+                      height: 720,
 
-                    deviceId: {
-                      exact:
-                        selectedDevice,
-                    },
-                  }
+                      deviceId: {
+                        exact:
+                          selectedDevice,
+                      },
+                    }
               }
               className="
                 w-full
@@ -1101,470 +479,651 @@ export default function Home() {
 
           </div>
 
-          {/* BUTTONS */}
+          {/* PREVIEW BAR */}
           <div className="
+            mt-6
+            rounded-[28px]
+            bg-white/70
+            min-h-[120px]
+            p-6
+            shadow-xl
             flex
-            gap-4
-            flex-wrap
-            justify-center
-            mt-8
+            items-start
+            justify-between
           ">
 
-            <button
-              onClick={capture}
-              className="
-                h-[58px]
-                px-8
-                rounded-full
-                bg-pink-400
-                hover:bg-pink-500
-                text-white
-                font-bold
-              "
-            >
-              📸 Chụp thủ công
-            </button>
+            <div>
 
-            <button
-              disabled={autoMode}
-              onClick={autoCapture}
-              className="
-                h-[58px]
-                px-8
-                rounded-full
-                bg-purple-400
-                hover:bg-purple-500
-                text-white
-                font-bold
-                disabled:opacity-50
-                disabled:cursor-not-allowed
-              "
-            >
-              ⏳ Chụp tự động
-            </button>
+              <h2 className="
+                text-3xl
+                font-black
+                text-pink-500
+              ">
+                Preview ✨
+              </h2>
+<div className="
+  mt-4
+  flex
+  gap-4
+  overflow-x-auto
+  pb-2
+">
 
-            {/* VIDEO RECAP */}
-            <button
-              disabled={autoMode}
-              onClick={() =>
-                setEnableRecap(
-                  !enableRecap
-                )
-              }
-              className={`
-                h-[58px]
-                px-8
-                rounded-full
-                font-bold
-                shadow-lg
-                transition
-                disabled:opacity-50
-                disabled:cursor-not-allowed
+  {images.map(
+    (img, index) => (
 
-                ${
-                  enableRecap
-                    ? `
-                      bg-pink-400
-                      text-white
-                    `
-                    : `
-                      bg-white/70
-                      text-zinc-700
-                    `
-                }
-              `}
-            >
-              🎥 Video Recap:
-              {" "}
-              {enableRecap
-                ? "ON"
-                : "OFF"}
-            </button>
+      <img
+        key={index}
+        src={img}
+        className="
+          w-32
+          h-24
+          object-cover
+          rounded-2xl
+          border-4
+          border-white
+          shadow-lg
+          flex-shrink-0
+        "
+      />
 
-            {/* RESET */}
-            <button
-              onClick={async () => {
+    )
+  )}
 
-                stopAutoCaptureRef.current =
-                  true
+</div>
+            </div>
 
-                setCountdownNumber(
-                  null
-                )
+            {images.length >= requiredPhotos && (
 
-                if (
-                  recording &&
-                  mediaRecorderRef.current
-                    ?.state !==
-                  "inactive"
-                ) {
+              <button
+                onClick={() => {
 
-                  await stopRecording()
-                }
+                  localStorage.setItem(
+                    "photobooth-images",
+                    JSON.stringify(images)
+                  )
 
-                setImages([])
-                setPreviewImage(
-                  null
-                )
+                  localStorage.setItem(
+                    "photobooth-layout",
+                    layout
+                  )
 
-                setAutoMode(false)
-              }}
-              className="
-                h-[58px]
-                px-8
-                rounded-full
-                bg-white/70
-                text-zinc-700
-                font-bold
-              "
-            >
-              Reset
-            </button>
+                  router.push(
+                    "/download"
+                  )
+                }}
+                className="
+                  px-5
+                  py-3
+                  rounded-2xl
+                  bg-pink-400
+                  text-white
+                  font-black
+                  shadow-lg
+                "
+              >
+                🎞️ Tạo ảnh
+              </button>
+
+            )}
 
           </div>
 
         </div>
-{/* RIGHT SIDE */}
-<div className="
-  w-full
-  lg:w-[360px]
-  lg:sticky
-  lg:top-8
-  min-h-[520px]
-  bg-white/60
-  backdrop-blur-xl
-  rounded-[32px]
-  border
-  border-white/50
-  shadow-2xl
-  p-6
-  z-10
-">
 
-  <div className="
-    flex
-    items-center
-    justify-between
-    mb-6
-  ">
+        {/* RIGHT */}
+        <div className="
+          w-[220px]
+          flex
+          flex-col
+          gap-5
+        ">
 
-    <h2 className="
-      text-2xl
-      font-black
-      text-pink-500
-    ">
-      Preview ✨
-    </h2>
+          {/* CAMERA */}
+          {!isMobile && (
 
-    {images.length >= requiredPhotos && (
+            <div>
 
-      <button
-        onClick={() => {
+              <p className="
+                text-blue-500
+                font-bold
+                mb-2
+              ">
+                Camera
+              </p>
 
-          localStorage.setItem(
-            "photobooth-images",
-            JSON.stringify(images)
-          )
+              <select
+                value={
+                  selectedDevice
+                }
+                onChange={(e) =>
+                  setSelectedDevice(
+                    e.target.value
+                  )
+                }
+                className="
+                  w-full
+                  px-4
+                  py-4
+                  rounded-2xl
+                  bg-white
+                  shadow-lg
+                "
+              >
 
-          localStorage.setItem(
-            "photobooth-layout",
-            layout
-          )
+                {devices.map(
+                  (device) => (
 
-          router.push("/download")
-        }}
-        className="
-          px-4
-          py-2
-          rounded-xl
-          bg-pink-400
-          hover:bg-pink-500
-          text-white
-          text-sm
-          font-bold
-          shadow-lg
-          transition
-          hover:scale-105
-        "
-      >
-        🎞️ Tạo ảnh
-      </button>
+                    <option
+                      key={
+                        device.deviceId
+                      }
+                      value={
+                        device.deviceId
+                      }
+                    >
+                      {device.label}
+                    </option>
 
-    )}
+                  )
+                )}
 
-  </div>
+              </select>
 
-  {images.length > 0 ? (
+            </div>
 
-    <div className="
-      grid
-      grid-cols-1
-      gap-4
-    ">
+          )}
 
-      {images.map((img, index) => (
-
-        <div
-          key={index}
-          className="
+          {/* LAYOUT */}
+          <div className="
             relative
-          "
-        >
+          ">
 
-          <img
-            src={img}
-            alt={`capture-${index}`}
-            className={`
-              w-full
-              ${
-                layout === "2×2 (4 ảnh)"
-                  ? "aspect-[3/4]"
-                  : "aspect-video"
+            <p className="
+              text-pink-500
+              font-bold
+              mb-2
+            ">
+              Layout Ảnh
+            </p>
+
+            <button
+              onClick={() =>
+                setOpenLayout(
+                  !openLayout
+                )
               }
-              object-cover
-              rounded-2xl
-              border-4
-              border-white
-              shadow-md
-            `}
-          />
+              className="
+                w-full
+                px-4
+                py-4
+                rounded-2xl
+                bg-white
+                shadow-lg
+                flex
+                items-center
+                justify-between
+              "
+            >
+
+              {layout}
+
+              <ChevronDown />
+
+            </button>
+
+            {openLayout && (
+
+              <div className="
+                absolute
+                top-full
+                mt-2
+                w-full
+                bg-white
+                rounded-2xl
+                shadow-2xl
+                overflow-hidden
+                z-50
+              ">
+
+                {[
+                 "2×3 (6 ảnh)",
+                "1×4 Strip",
+                ].map((item) => (
+
+                  <button
+                    key={item}
+                    onClick={() => {
+
+                      setLayout(item)
+
+                      setOpenLayout(
+                        false
+                      )
+                    }}
+                    className="
+                      w-full
+                      px-4
+                      py-4
+                      text-left
+                      hover:bg-pink-100
+                    "
+                  >
+                    {item}
+                  </button>
+
+                ))}
+
+              </div>
+
+            )}
+
+          </div>
+
+          {/* COUNTDOWN */}
+          <div className="
+            relative
+          ">
+
+            <p className="
+              text-purple-500
+              font-bold
+              mb-2
+            ">
+              Đếm Ngược
+            </p>
+
+            <button
+              onClick={() =>
+                setOpenCountdown(
+                  !openCountdown
+                )
+              }
+              className="
+                w-full
+                px-4
+                py-4
+                rounded-2xl
+                bg-white
+                shadow-lg
+                flex
+                items-center
+                justify-between
+              "
+            >
+
+              {countdown}
+
+              <ChevronDown />
+
+            </button>
+
+            {openCountdown && (
+
+              <div className="
+                absolute
+                top-full
+                mt-2
+                w-full
+                bg-white
+                rounded-2xl
+                shadow-2xl
+                overflow-hidden
+                z-50
+              ">
+
+                {[
+                  "3s",
+                  "5s",
+                  "10s",
+                ].map((item) => (
+
+                  <button
+                    key={item}
+                    onClick={() => {
+
+                      setCountdown(
+                        item
+                      )
+
+                      setOpenCountdown(
+                        false
+                      )
+                    }}
+                    className="
+                      w-full
+                      px-4
+                      py-4
+                      text-left
+                      hover:bg-purple-100
+                    "
+                  >
+                    {item}
+                  </button>
+
+                ))}
+
+              </div>
+
+            )}
+
+          </div>
+
+          {/* BUTTONS */}
+          <button
+  disabled={capturing}
+  onClick={async () => {
+
+    setCapturing(true)
+
+    await capture()
+
+    setCapturing(false)
+  }}
+  className="
+    h-[64px]
+    rounded-full
+    bg-pink-400
+    text-white
+    font-black
+    shadow-xl
+    text-lg
+    disabled:opacity-50
+    disabled:cursor-not-allowed
+  "
+>
+  📸 Chụp thủ công
+</button>
 
           <button
-            onClick={() => {
+  disabled={capturing}
+  onClick={async () => {
+    setCapturing(true)
 
-              setImages((prev) =>
-                prev.filter(
-                  (_, i) =>
-                    i !== index
+if (enableRecap) {
+
+  await startRecording()
+}
+
+    for (
+      let i = 0;
+      i < requiredPhotos;
+      i++
+    ) {
+
+      await capture()
+      // ĐỢI PREVIEW ĐÓNG
+      await new Promise<void>(
+        (resolve) => {
+
+          const interval =
+            setInterval(() => {
+
+              if (
+  !previewImageRef.current
+){
+
+                clearInterval(
+                  interval
                 )
-              )
-            }}
-            className="
-              absolute
-              top-3
-              right-3
-              w-10
-              h-10
-              rounded-full
-              bg-black/50
+
+                resolve()
+              }
+
+            }, 100)
+        }
+      )
+
+      // nghỉ nhẹ
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            300
+          )
+      )
+      
+    }
+     if (enableRecap) {
+
+      const blob =
+        await stopRecording()
+
+      const videoUrl =
+        URL.createObjectURL(
+          blob
+        )
+
+      localStorage.setItem(
+        "photobooth-video",
+        videoUrl
+      )
+    }
+
+    setCapturing(false)
+  }}
+  className="
+    h-[64px]
+    rounded-full
+    bg-purple-400
               text-white
               font-black
-              hover:bg-red-500
-              transition
+              shadow-xl
+              text-lg
+              disabled:opacity-50
+disabled:cursor-not-allowed
             "
           >
-            ✕
+            ⏳ Chụp tự động
+          </button>
+
+          <button
+  disabled={capturing}
+  onClick={() =>
+    setEnableRecap(
+      !enableRecap
+    )
+  }
+  className={`
+    h-[64px]
+    rounded-full
+    text-white
+    font-black
+    shadow-xl
+    text-lg
+disabled:opacity-50
+disabled:cursor-not-allowed
+    ${
+      enableRecap
+        ? `
+          bg-pink-400
+        `
+        : `
+          bg-zinc-400
+        `
+    }
+  `}
+>
+  🎥 Video Recap:
+  {" "}
+  {enableRecap
+    ? "ON"
+    : "OFF"}
+</button>
+
+          <button
+  disabled={capturing}
+  onClick={() => {
+
+  if (
+    previewTimerRef.current
+  ) {
+
+    clearInterval(
+      previewTimerRef.current
+    )
+  }
+
+  previewImageRef.current =
+    null
+
+  setPreviewImage(null)
+
+  setImages([])
+
+  setCountdownNumber(null)
+
+  setWaitingPreviewClose(false)
+}}
+            className="
+              h-[64px]
+              rounded-full
+              bg-white
+              text-zinc-700
+              font-black
+              shadow-xl
+              disabled:opacity-50
+disabled:cursor-not-allowed
+            "
+          >
+            Reset
           </button>
 
         </div>
 
-      ))}
+      </div>
 
-    </div>
-
-  ) : (
-
-    <div className={`
-      ${
-        layout === "2×2 (4 ảnh)"
-          ? "aspect-[3/4]"
-          : "aspect-video"
-      }
-      rounded-3xl
-      border-2
-      border-dashed
-      border-pink-200
-      flex
-      items-center
-      justify-center
-      text-zinc-400
-      text-center
-      p-6
-    `}>
-
-      <div className="
-        flex
-        flex-col
-        items-center
-        gap-4
-      ">
+      {/* PREVIEW MODAL */}
+      {previewImage && (
 
         <div className="
-          text-6xl
+          fixed
+          inset-0
+          bg-black/60
+          backdrop-blur-md
+          flex
+          items-center
+          justify-center
+          z-[99999]
         ">
-          📸
+
+          <div className="
+            bg-white
+            rounded-[40px]
+            p-8
+            w-[900px]
+            max-w-[95vw]
+            shadow-2xl
+          ">
+
+            <img
+              src={previewImage}
+              className="
+                w-full
+                max-h-[70vh]
+                object-cover
+                rounded-[32px]
+              "
+            />
+
+            <div className="
+              flex
+              gap-4
+              mt-6
+            ">
+
+              {/* RETAKE */}
+              <button
+               onClick={() => {
+
+  if (
+    previewTimerRef.current
+  ) {
+
+    clearInterval(
+      previewTimerRef.current
+    )
+  }
+
+  previewImageRef.current =
+    null
+
+  setPreviewImage(null)
+
+  setWaitingPreviewClose(false)
+
+  previewResolveRef.current?.()
+
+  previewResolveRef.current =
+    null
+}}
+                className="
+                  flex-1
+                  py-5
+                  rounded-2xl
+                  bg-zinc-100
+                  font-black
+                  text-xl
+                "
+              >
+                Chụp lại
+              </button>
+
+              {/* SAVE */}
+              <button
+               onClick={() => {
+
+  if (
+    previewTimerRef.current
+  ) {
+
+    clearInterval(
+      previewTimerRef.current
+    )
+  }
+
+  if (!previewImage)
+    return
+
+  setImages((prev) => [
+    ...prev,
+    previewImage,
+  ])
+
+  previewImageRef.current =
+    null
+
+  setPreviewImage(null)
+
+  setWaitingPreviewClose(false)
+
+  // QUAN TRỌNG 😭🔥
+  previewResolveRef.current?.()
+
+  previewResolveRef.current =
+    null
+}}
+                className="
+                  flex-1
+                  py-5
+                  rounded-2xl
+                  bg-pink-400
+                  text-white
+                  font-black
+                  text-xl
+                "
+              >
+                Lưu ảnh ({saveCountdown}s)
+              </button>
+
+            </div>
+
+          </div>
+
         </div>
 
-        <p>
-          Your captured photo
-          will appear here 💖
-        </p>
+      )}
 
-      </div>
-
-    </div>
-
-  )}
-
-  <div className={`
-    mt-6
-    text-center
-    text-sm
-    font-semibold
-    transition
-    ${
-      images.length >=
-      requiredPhotos
-        ? "text-pink-500"
-        : "text-zinc-500"
-    }
-  `}>
-
-    {images.length}/
-    {requiredPhotos}
-    {" "}
-    photos needed ✨
-
-  </div>
-
-</div>
-      </div>
-{/* PREVIEW MODAL */}
-{previewImage && (
-
-  <div className="
-    fixed
-    inset-0
-    bg-black/50
-    backdrop-blur-md
-    flex
-    items-center
-    justify-center
-    z-[9999]
-    p-6
-  ">
-
-    <div className={`
-      bg-white/95
-      backdrop-blur-xl
-      rounded-[40px]
-      p-8
-      shadow-2xl
-      flex
-      flex-col
-      ${
-        layout === "2×2 (4 ảnh)"
-          ? "w-[520px]"
-          : "w-[1000px]"
-      }
-      max-w-[95vw]
-    `}>
-
-      <h2 className="
-        text-3xl
-        font-black
-        text-pink-500
-        text-center
-        mb-6
-      ">
-        Your Photo ✨
-      </h2>
-
-      <div className="
-        flex
-        items-center
-        justify-center
-        overflow-hidden
-      ">
-
-        <img
-          src={previewImage}
-          alt="preview"
-          className={`
-            w-full
-            ${
-              isMobile
-                ? "aspect-[3/4]"
-                : "max-h-[70vh]"
-            }
-            object-cover
-            rounded-[32px]
-            border-4
-            border-pink-100
-            shadow-lg
-            bg-black
-          `}
-        />
-
-      </div>
-
-      <div className="
-        flex
-        gap-4
-        mt-6
-        pt-4
-      ">
-
-        {/* RETAKE */}
-        <button
-          onClick={() =>
-            setPreviewImage(null)
-          }
-          className="
-            flex-1
-            py-4
-            rounded-2xl
-            bg-zinc-100
-            hover:bg-zinc-200
-            font-bold
-            transition
-          "
-        >
-          Chụp lại
-        </button>
-
-        {/* SAVE */}
-        <button
-          disabled={
-            images.length >= 10
-          }
-          onClick={() => {
-
-            if (
-              images.length >= 10
-            ) return
-
-            setImages((prev) => [
-              ...prev,
-              previewImage,
-            ])
-
-            setPreviewImage(null)
-          }}
-          className="
-            flex-1
-            py-4
-            rounded-2xl
-            bg-pink-400
-            hover:bg-pink-500
-            text-white
-            font-bold
-            shadow-lg
-            transition
-            disabled:opacity-50
-            disabled:cursor-not-allowed
-          "
-        >
-          Lưu ảnh
-        </button>
-
-      </div>
-
-    </div>
-
-  </div>
-
-)}
     </main>
   )
 }
